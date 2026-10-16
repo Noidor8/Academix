@@ -31,7 +31,7 @@ def dispatch_pending_updates(
     normalized = [
         message
         for update in updates
-        for message in [normalize_update(update.payload, update.received_at_utc)]
+        for message in [normalize_update(update.payload)]
         if message is not None
     ]
     records: Sequence[Mapping[str, object]] = [message.to_record() for message in normalized]

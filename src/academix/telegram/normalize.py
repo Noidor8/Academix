@@ -19,7 +19,7 @@ def _attachment_name(message: dict[str, Any]) -> Optional[str]:
     return None
 
 
-def normalize_update(payload: dict[str, Any], ingested_at_utc: str) -> Optional[TelegramMessageV1]:
+def normalize_update(payload: dict[str, Any]) -> Optional[TelegramMessageV1]:
     """Return a storage record for a group message update, or None for other updates."""
 
     message = payload.get("message") or payload.get("edited_message")
@@ -37,8 +37,15 @@ def normalize_update(payload: dict[str, Any], ingested_at_utc: str) -> Optional[
 
     sender = message.get("from") or {}
     sender_chat = message.get("sender_chat") or {}
-    sender_id = str(sender["id"]) if isinstance(sender.get("id"), int) else None
-    sender_name = sender.get("full_name") or sender_chat.get("title")
+    sender_id = (
+        str(sender["id"])
+        if not sender_chat and isinstance(sender.get("id"), int)
+        else None
+    )
+    sender_name = sender_chat.get("title")
+    if not isinstance(sender_name, str):
+        name_parts = [sender.get("first_name"), sender.get("last_name")]
+        sender_name = " ".join(part for part in name_parts if isinstance(part, str) and part)
     text = message.get("text")
     caption = message.get("caption")
     if isinstance(text, str):
@@ -56,7 +63,7 @@ def normalize_update(payload: dict[str, Any], ingested_at_utc: str) -> Optional[
         message_id=int(message["message_id"]),
         date=_utc_from_unix(int(message["date"])),
         author_id=sender_id,
-        author_name=sender_name if isinstance(sender_name, str) else None,
+        author_name=sender_name or None,
         reply_to_message_id=(
             int(replied_to["message_id"])
             if isinstance(replied_to.get("message_id"), int)

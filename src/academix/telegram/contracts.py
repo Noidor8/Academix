@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Literal, Optional, Protocol
+from typing import Any, Optional, Protocol
 
 
 def _utc(value: str, field_name: str) -> str:
