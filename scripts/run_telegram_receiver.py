@@ -22,8 +22,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--database",
         type=Path,
-        default=PROJECT_ROOT / ".local" / "academix.sqlite3",
-        help="SQLite database path (default: .local/academix.sqlite3).",
+        default=Path(
+            os.environ.get(
+                "ACADEMIX_DB", str(PROJECT_ROOT / ".local" / "academix.db")
+            )
+        ),
+        help="SQLite database path (default: ACADEMIX_DB or .local/academix.db).",
     )
     parser.add_argument(
         "--polling-timeout",

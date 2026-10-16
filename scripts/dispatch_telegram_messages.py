@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -34,13 +35,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--db-module",
-        default="db",
-        help="Import path exposing save_messages(list_of_dicts), default: db.",
+        default="academix.db",
+        help="Import path exposing save_messages(list_of_dicts), default: academix.db.",
     )
     parser.add_argument(
         "--database",
         type=Path,
-        default=PROJECT_ROOT / ".local" / "academix.sqlite3",
+        default=Path(
+            os.environ.get(
+                "ACADEMIX_DB", str(PROJECT_ROOT / ".local" / "academix.db")
+            )
+        ),
+        help="SQLite database path; also passed to the DB component as ACADEMIX_DB.",
     )
     parser.add_argument("--batch-size", type=int, default=100)
     return parser.parse_args()
@@ -48,6 +54,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    os.environ["ACADEMIX_DB"] = str(args.database)
     module = importlib.import_module(args.db_module)
     save_messages = getattr(module, "save_messages")
     inbox = SqliteUpdateInbox(args.database)
