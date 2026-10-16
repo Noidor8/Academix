@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from unittest.mock import patch
 from urllib.error import URLError
+
+# Support both ``python tests/test_telegram_pipeline.py`` and unittest discovery
+# without requiring an editable install of the src-layout package.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from academix.telegram.access import AccessDecision, TelegramAccessChecker
 from academix.telegram.contracts import SaveReport, TelegramMessageV1
