@@ -13,10 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-import academix.db as db  # noqa: E402
-from academix.db.fake_data import generate  # noqa: E402
-from academix.db.storage import Storage  # noqa: E402
-from load_messages import main as load_json_main  # noqa: E402
+import academix.db as db
+from academix.db.fake_data import generate
+from academix.db.storage import Storage
+from load_messages import main as load_json_main
 
 
 def make_message(**overrides: Any) -> dict[str, Any]:
@@ -95,7 +95,7 @@ def test_filters_and_newest_first_ordering(storage: Storage) -> None:
         make_message(message_id=2, date="2026-10-05T10:00:00Z", author_id="7"),
         make_message(message_id=3, date="2026-10-09T10:00:00Z", chat_id=-2002),
     ])
-    ids = lambda **filters: [m["message_id"] for m in storage.get_messages(**filters)]  # noqa: E731
+    ids = lambda **filters: [m["message_id"] for m in storage.get_messages(**filters)]
     assert ids() == [3, 2, 1]
     assert ids(chat_id=-1001) == [2, 1]
     assert ids(since="2026-10-04", until="2026-10-06") == [2]
@@ -236,7 +236,7 @@ def test_list_chats_dates_and_order(storage: Storage) -> None:
         make_message(chat_id=-2, message_id=1, date="2026-10-01T10:00:00Z"),
     ])
     first, second = storage.list_chats()
-    assert first["chat_id"] == -2                                    # самый свежий чат сверху
+    assert first["chat_id"] == -2
     assert (second["first_date"], second["last_date"]) == ("2026-09-01T10:00:00Z", "2026-09-20T10:00:00Z")
 
 
@@ -244,7 +244,7 @@ def test_failed_batch_leaves_database_unchanged(storage: Storage, monkeypatch: p
     """Если посреди пачки упало, в базе не остаётся половины: транзакция откатывается."""
     monkeypatch.setattr("academix.db.storage.UPDATE_SQL", "THIS IS NOT SQL")
     with pytest.raises(sqlite3.Error):
-        storage.save_messages([make_message(message_id=1), make_message(message_id=1)])  # 2-й → UPDATE → падение
+        storage.save_messages([make_message(message_id=1), make_message(message_id=1)])
     assert storage.get_messages() == []
 
 
@@ -262,7 +262,7 @@ def test_fake_data_is_deterministic_and_valid() -> None:
     first, second = generate(), generate()
     assert first == second
     assert len(first) > 50
-    assert all(set(m) == set(make_message()) for m in first)        # ровно поля контракта
+    assert all(set(m) == set(make_message()) for m in first)
     assert any(m["is_pinned"] for m in first) and any(m["edit_date"] for m in first)
 
 

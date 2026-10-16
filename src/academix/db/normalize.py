@@ -42,5 +42,5 @@ def to_iso_utc(value: Any) -> str | None:
         moment = datetime.fromtimestamp(int(value), tz=timezone.utc)
     else:
         moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    moment = moment.replace(tzinfo=moment.tzinfo or timezone.utc)  # без пояса → считаем UTC
+    moment = moment.replace(tzinfo=moment.tzinfo or timezone.utc)
     return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
