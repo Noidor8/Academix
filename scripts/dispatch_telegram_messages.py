@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+LOGGER = logging.getLogger(__name__)
 
 from academix.telegram.contracts import SaveReport  # noqa: E402
 from academix.telegram.dispatch import dispatch_pending_updates  # noqa: E402
@@ -49,35 +53,98 @@ def parse_args() -> argparse.Namespace:
         help="SQLite database path; also passed to the DB component as ACADEMIX_DB.",
     )
     parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Keep checking the inbox and dispatching new updates until interrupted.",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=1.0,
+        help="Seconds to wait between inbox checks in --watch mode (default: 1).",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.batch_size < 1:
+        print("--batch-size must be greater than zero.", file=sys.stderr)
+        return 2
+    if args.poll_interval <= 0:
+        print("--poll-interval must be greater than zero.", file=sys.stderr)
+        return 2
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     os.environ["ACADEMIX_DB"] = str(args.database)
-    module = importlib.import_module(args.db_module)
-    save_messages = getattr(module, "save_messages")
+    try:
+        module = importlib.import_module(args.db_module)
+    except ModuleNotFoundError as error:
+        if error.name == args.db_module or args.db_module.startswith(
+            "{}.".format(error.name)
+        ):
+            print(
+                "Database module {!r} is unavailable in this checkout. "
+                "Integrate the database package or pass its import path with "
+                "--db-module.".format(args.db_module),
+                file=sys.stderr,
+            )
+            return 2
+        raise
+
+    save_messages = getattr(module, "save_messages", None)
+    if not callable(save_messages):
+        print(
+            "Database module {!r} does not expose callable save_messages().".format(
+                args.db_module
+            ),
+            file=sys.stderr,
+        )
+        return 2
     inbox = SqliteUpdateInbox(args.database)
     inbox.open()
     try:
-        report = dispatch_pending_updates(
-            inbox,
-            DatabaseFunctionStore(save_messages),
-            batch_size=args.batch_size,
-        )
+        store = DatabaseFunctionStore(save_messages)
+        while True:
+            try:
+                report = dispatch_pending_updates(
+                    inbox,
+                    store,
+                    batch_size=args.batch_size,
+                )
+                if report.received or not args.watch:
+                    print(
+                        "DispatchReport(received={}, normalized={}, ignored={}, "
+                        "inserted={}, updated={}, skipped={})".format(
+                            report.received,
+                            report.normalized,
+                            report.ignored,
+                            report.saved.inserted,
+                            report.saved.updated,
+                            report.saved.skipped,
+                        ),
+                        flush=True,
+                    )
+                if not args.watch:
+                    break
+                if report.received == 0:
+                    time.sleep(args.poll_interval)
+            except KeyboardInterrupt:
+                break
+            except Exception:
+                if not args.watch:
+                    raise
+                LOGGER.exception(
+                    "Dispatch failed; pending updates will be retried in %.1f seconds",
+                    args.poll_interval,
+                )
+                time.sleep(args.poll_interval)
     finally:
         inbox.close()
-    print(
-        "DispatchReport(received={}, normalized={}, ignored={}, "
-        "inserted={}, updated={}, skipped={})".format(
-            report.received,
-            report.normalized,
-            report.ignored,
-            report.saved.inserted,
-            report.saved.updated,
-            report.saved.skipped,
-        )
-    )
     return 0
 
 
