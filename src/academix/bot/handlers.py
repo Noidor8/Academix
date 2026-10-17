@@ -6,9 +6,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from aiogram.utils.chat_action import ChatActionSender
 
-from bot.formatting import format_summary, split_message
-from bot.service import SummaryError, create_summary
-from bot.validation import PERIOD_HINT, extract_period, validate_chat_id
+from .formatting import format_summary, split_message
+from .service import SummaryError, create_summary
+from .validation import PERIOD_HINT, extract_period, validate_chat_id
 
 
 HELP = (

@@ -1,8 +1,8 @@
 import asyncio
 import logging
 
-from bot import integration
-from bot.validation import validate_request
+from . import integration
+from .validation import validate_request
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,11 @@ async def create_summary(request: dict, *, timeout: float = 60) -> dict:
         raise SummaryError("Получение сообщений или ИИ-агент ещё не подключены. Сводка пока недоступна.") from None
     except SummaryError:
         raise
+    except integration.AgentError as error:
+        logger.warning("Ошибка агента: %s", type(error).__name__)
+        if str(error) == "Context is too large; select a shorter period":
+            raise SummaryError("Слишком много сообщений. Выберите меньший период.") from None
+        raise SummaryError("Не удалось получить сводку. Попробуйте позже.") from None
     except Exception as error:
         # Не записываем токены, тексты сообщений и содержимое исключений.
         logger.warning("Ошибка интеграции: %s", type(error).__name__)

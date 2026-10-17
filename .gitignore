@@ -1,0 +1,12 @@
+.local/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+__pycache__/
+*.py[cod]
+*.egg-info/
+AGENTS.md
+docs/agents/
+.scratch/

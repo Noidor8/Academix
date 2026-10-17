@@ -2,19 +2,25 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.token import TokenValidationError
 
-from bot.config import load_config
-from bot.handlers import build_router
+from .config import load_config
+from .handlers import build_router
+from academix.telegram.bot import run
 
 
 async def main() -> None:
     config = load_config()
-    bot = Bot(token=config["token"])
+    bot = Bot(token=config["token"], session=AiohttpSession(proxy=config.get("proxy"), timeout=40))
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.include_router(build_router(config))
-    await dispatcher.start_polling(bot)
+    try:
+        await run(bot, dispatcher)
+    finally:
+        await dispatcher.storage.close()
+        await bot.session.close()
 
 
 if __name__ == "__main__":
@@ -22,4 +28,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (ValueError, TokenValidationError):
-        raise SystemExit("Проверьте BOT_TOKEN и BOT_TIMEZONE. См. README.md.") from None
+        raise SystemExit("Проверьте BOT_TOKEN, BOT_TIMEZONE и подключение Telegram.") from None
