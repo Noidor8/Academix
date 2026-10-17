@@ -8,12 +8,13 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from threading import Event
 
 from .inbox import RawTelegramUpdate, SqliteUpdateInbox
 
 
 LOGGER = logging.getLogger(__name__)
-ALLOWED_UPDATES = ["message", "edited_message", "my_chat_member"]
+ALLOWED_UPDATES = ["message", "edited_message", "my_chat_member", "callback_query"]
 
 
 class TelegramApiError(RuntimeError):
@@ -85,14 +86,14 @@ class TelegramLongPollingReceiver:
         self._inbox = inbox
         self._polling_timeout = polling_timeout
 
-    def run(self) -> None:
+    def run(self, *, stop_event: Optional[Event] = None) -> None:
         state = self._inbox.get_state()
         next_offset = state.next_offset
         self._record_startup_gap(state.last_success_utc)
         backoff_seconds = 1.0
         LOGGER.info("Telegram receiver started at offset %s", next_offset)
 
-        while True:
+        while stop_event is None or not stop_event.is_set():
             try:
                 updates = self._bot.get_updates(next_offset, self._polling_timeout)
                 received_at = utc_text(utc_now())
@@ -105,11 +106,15 @@ class TelegramLongPollingReceiver:
                     )
                     for update in updates
                 ]
-                if updates:
-                    next_offset = max(int(update["update_id"]) for update in updates) + 1
-                self._inbox.store_poll(
-                    raw_updates, next_offset=next_offset, succeeded_at_utc=received_at
+                stored_offset = (
+                    max(int(update["update_id"]) for update in updates) + 1
+                    if updates else next_offset
                 )
+                self._inbox.store_poll(
+                    raw_updates, next_offset=stored_offset, succeeded_at_utc=received_at
+                )
+                # Acknowledge updates to Telegram only after the inbox commits.
+                next_offset = stored_offset
                 if updates:
                     LOGGER.info("Stored %s update(s); next offset is %s", len(updates), next_offset)
                 backoff_seconds = 1.0
@@ -117,7 +122,10 @@ class TelegramLongPollingReceiver:
                 raise
             except Exception:
                 LOGGER.exception("Polling failed; retrying in %.1f seconds", backoff_seconds)
-                time.sleep(backoff_seconds)
+                if stop_event is None:
+                    time.sleep(backoff_seconds)
+                else:
+                    stop_event.wait(backoff_seconds)
                 backoff_seconds = min(backoff_seconds * 2, 30.0)
 
     def _record_startup_gap(self, last_success_utc: Optional[str]) -> None:

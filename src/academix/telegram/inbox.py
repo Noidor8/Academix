@@ -29,6 +29,11 @@ class SourceRecord:
     available_from_utc: str
 
 
+def is_group_update(payload: dict[str, Any]) -> bool:
+    event = payload.get("message") or payload.get("edited_message") or payload.get("my_chat_member") or {}
+    return isinstance(event, dict) and (event.get("chat") or {}).get("type") in {"group", "supergroup"}
+
+
 class SqliteUpdateInbox:
     """Durable raw-update inbox and polling checkpoint in one transaction."""
 
@@ -36,7 +41,7 @@ class SqliteUpdateInbox:
         self._database_path = database_path
         self._connection: Optional[sqlite3.Connection] = None
 
-    def open(self) -> None:
+    def open(self, *, rebuild_source_catalog: bool = True) -> None:
         self._database_path.parent.mkdir(parents=True, exist_ok=True)
         self._connection = sqlite3.connect(self._database_path)
         self._connection.execute("PRAGMA journal_mode = WAL")
@@ -71,7 +76,8 @@ class SqliteUpdateInbox:
             );
             """
         )
-        self._rebuild_source_catalog()
+        if rebuild_source_catalog:
+            self._rebuild_source_catalog()
         self._connection.commit()
 
     def close(self) -> None:
@@ -94,6 +100,7 @@ class SqliteUpdateInbox:
         next_offset: int,
         succeeded_at_utc: str,
     ) -> None:
+        updates = [update for update in updates if is_group_update(update.payload)]
         connection = self._connection_or_raise()
         with connection:
             connection.executemany(

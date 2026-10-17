@@ -38,6 +38,11 @@ def parse_args() -> argparse.Namespace:
         description="Normalize pending Telegram updates and send them to the DB batch function."
     )
     parser.add_argument(
+        "--db-source",
+        type=Path,
+        help="Extra directory containing the DB package (for local branch testing).",
+    )
+    parser.add_argument(
         "--db-module",
         default="academix.db",
         help="Import path exposing save_messages(list_of_dicts), default: academix.db.",
@@ -53,6 +58,12 @@ def parse_args() -> argparse.Namespace:
         help="SQLite database path; also passed to the DB component as ACADEMIX_DB.",
     )
     parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument(
+        "--inbox-database",
+        type=Path,
+        default=os.environ.get("ACADEMIX_TELEGRAM_INBOX"),
+        help="Separate buffer SQLite file; defaults to --database for compatibility.",
+    )
     parser.add_argument(
         "--watch",
         action="store_true",
@@ -81,6 +92,8 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     os.environ["ACADEMIX_DB"] = str(args.database)
+    if args.db_source is not None:
+        sys.path.insert(0, str(args.db_source.resolve()))
     try:
         module = importlib.import_module(args.db_module)
     except ModuleNotFoundError as error:
@@ -105,7 +118,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-    inbox = SqliteUpdateInbox(args.database)
+    inbox = SqliteUpdateInbox(args.inbox_database or args.database)
     inbox.open()
     try:
         store = DatabaseFunctionStore(save_messages)

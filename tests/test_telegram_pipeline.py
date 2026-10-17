@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 import sys
 import unittest
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import URLError
 
 # Support both ``python tests/test_telegram_pipeline.py`` and unittest discovery
@@ -254,6 +255,19 @@ class DispatchTests(unittest.TestCase):
 
         self.assertEqual(len(self.inbox.pending_updates()), 1)
 
+    def test_private_update_is_not_saved_in_buffer(self) -> None:
+        private = raw_update(8, group_message(chat={"id": 1234, "type": "private"}))
+        self.inbox.store_poll([private], next_offset=9, succeeded_at_utc=private.received_at_utc)
+        self.assertEqual([update.update_id for update in self.inbox.pending_updates()], [7])
+        self.assertEqual(self.inbox.get_state().next_offset, 9)
+        store = Mock()
+        store.save_messages.return_value = SaveReport(1, 0, 0)
+
+        report = dispatch_pending_updates(self.inbox, store)
+
+        self.assertEqual(report.received, 1)
+        self.assertEqual(self.inbox.pending_updates(), [])
+
 
 class AccessTests(unittest.TestCase):
     class FakeBot:
@@ -305,16 +319,27 @@ class ReceiverTests(unittest.TestCase):
 
                 def get_updates(self, offset: int, timeout: int) -> list[dict[str, Any]]:
                     self.offsets.append(offset)
-                    if len(self.offsets) == 1:
+                    if len(self.offsets) <= 2:
                         return [{"update_id": 7, "message": group_message()}]
                     raise KeyboardInterrupt
 
             bot = FakeBot()
+            save_poll = inbox.store_poll
+            failures = [sqlite3.OperationalError("buffer unavailable")]
+
+            def store_poll(*args, **kwargs):
+                if failures:
+                    raise failures.pop()
+                return save_poll(*args, **kwargs)
+
             try:
-                with self.assertRaises(KeyboardInterrupt):
+                with patch.object(inbox, "store_poll", side_effect=store_poll), \
+                        patch("academix.telegram.receiver.time.sleep"), \
+                        self.assertLogs("academix.telegram.receiver", level="ERROR"), \
+                        self.assertRaises(KeyboardInterrupt):
                     TelegramLongPollingReceiver(bot, inbox, polling_timeout=1).run()
 
-                self.assertEqual(bot.offsets, [0, 8])
+                self.assertEqual(bot.offsets, [0, 0, 8])
                 self.assertEqual(inbox.get_state().next_offset, 8)
                 self.assertEqual(len(inbox.pending_updates()), 1)
             finally:
