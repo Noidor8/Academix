@@ -1,12 +1,51 @@
+# Local settings, credentials, data and tools
 .local/
 .env
 .env.*
 !.env.example
-__pycache__/
-*.py[cod]
+
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Build artifacts
+build/
+dist/
+
+# Generated documents and reports
+output/
+*.pdf
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Private keys
+*.key
+*.pem
+
+# Local agent instructions
 AGENTS.md
 docs/agents/
 .scratch/
