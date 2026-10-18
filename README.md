@@ -24,21 +24,20 @@ Telegram-бот, который собирает сообщения из уче�
 
 ## Как устроено
 
-**Сбор сообщений (в фоне):** группа в Telegram → long polling в `telegram/bot.py` → буфер `telegram-inbox.sqlite3` → `telegram/dispatch.py` → `academix.db.save_messages` → таблица `messages` в `academix.db`.
+**Сбор сообщений (в фоне):** группа в Telegram → long polling в `telegram/receiver.py` → буфер `telegram-inbox.sqlite3` → `telegram/dispatch.py` → `academix.db.save_messages` → таблица `messages` в `academix.db`.
 
-**Сводка (по запросу):** `/summary` в личном чате → `bot/handlers.py` → `bot/service.py` → `academix.db.get_messages` → `academix_agent` → OpenRouter → `bot/formatting.py` → ответ студенту.
+**Сводка (по запросу):** `/summary` в личном чате → `bot/handlers.py` → `bot/service.py` → `academix_agent` → `academix.db.get_messages` → `academix_agent` → OpenRouter → `bot/formatting.py` → ответ студенту.
 
 | Файл | Назначение |
 |---|---|
 | `src/academix/bot/__main__.py` | Точка входа: `python -m academix.bot` запускает бота |
 | `src/academix/bot/handlers.py` | Диалог `/summary`: `chat_id`, период и пожелание; команды `/help` и `/cancel` |
 | `src/academix/bot/validation.py` | Проверка `chat_id` и разбор периода (`сегодня`, `вчера`, диапазон дат) |
-| `src/academix/bot/service.py` | Сценарий сводки: выборка сообщений, вызов агента, общий тайм-аут |
-| `src/academix/bot/integration.py` | Связь бота с базой и агентом, чтение `.local/agent.ini` |
+| `src/academix/bot/service.py` | Сценарий сводки: вызов агента с параметрами запроса, общий тайм-аут |
+| `src/academix/bot/integration.py` | Связь бота с агентом, чтение `.local/agent.ini` |
 | `src/academix/bot/formatting.py` | Оформление сводки и разбиение длинного ответа на сообщения Telegram |
 | `src/academix/bot/config.py` | Настройки бота из переменных окружения |
-| `src/academix/telegram/bot.py` | Единый long polling: события групп уходят в буфер, личные сообщения — в диалог бота |
-| `src/academix/telegram/receiver.py` | Клиент Telegram Bot API и приём событий |
+| `src/academix/telegram/receiver.py` | Клиент Telegram Bot API и единый long polling: группы идут в буфер, личные сообщения — в диалог бота |
 | `src/academix/telegram/inbox.py` | Буфер событий в SQLite: исходные updates, offset, список групп |
 | `src/academix/telegram/normalize.py` | Преобразование Telegram update в сообщение из 11 полей |
 | `src/academix/telegram/dispatch.py` | Перенос событий из буфера в базу пачками с повтором при ошибке |
@@ -48,7 +47,7 @@ Telegram-бот, который собирает сообщения из уче�
 | `src/academix/db/queries.py` | Схема таблицы `messages` и все SQL-запросы |
 | `src/academix/db/normalize.py` | Проверка ключа, приведение типов, перевод дат в UTC |
 | `src/academix/db/models.py` | Поля сообщения и отчёт о сохранении `SaveReport` |
-| `src/academix_agent/agent.py` | Клиент OpenRouter, сборка промпта, проверка JSON-ответа модели |
+| `src/academix_agent/agent.py` | Выборка сообщений из БД, клиент OpenRouter, сборка промпта и проверка JSON-ответа модели |
 | `src/academix_agent/system_prompt.txt` | Системный промпт модели |
 | `scripts/run_telegram_receiver.py` | Отдельный приём событий без диалога с пользователем |
 | `scripts/dispatch_telegram_messages.py` | Ручной перенос событий из буфера в базу |
