@@ -1,0 +1,23 @@
+services:
+  bot:
+    build: .
+    image: academix-bot:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ACADEMIX_DB: /data/academix.db
+      ACADEMIX_TELEGRAM_INBOX: /data/telegram-inbox.sqlite3
+    volumes:
+      - bot-data:/data
+      - type: bind
+        source: ./.local/agent.ini
+        target: /app/.local/agent.ini
+        read_only: true
+        bind:
+          create_host_path: false
+    stop_grace_period: 30s
+
+volumes:
+  bot-data:

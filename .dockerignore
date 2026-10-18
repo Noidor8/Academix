@@ -1,0 +1,8 @@
+# Only the application and its dependency list are needed to build the image.
+**
+!Dockerfile
+!requirements-bot.txt
+!src/
+!src/**
+src/**/__pycache__/
+src/**/*.py[cod]
