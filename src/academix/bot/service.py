@@ -16,14 +16,7 @@ async def create_summary(request: dict, *, timeout: float = 60) -> dict:
     request = validate_request(request)
     try:
         async with asyncio.timeout(timeout):
-            messages = await integration.get_messages(request)
-            if not isinstance(messages, list):
-                raise SummaryError("Источник сообщений вернул неподдерживаемый ответ.")
-            if not messages:
-                return {}
-            result = await integration.call_agent(
-                {"request": request, "messages": messages}
-            )
+            result = await integration.call_agent(request)
             if result is None:
                 return {}
             if not isinstance(result, dict):

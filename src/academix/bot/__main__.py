@@ -8,7 +8,7 @@ from aiogram.utils.token import TokenValidationError
 
 from .config import load_config
 from .handlers import build_router
-from academix.telegram.bot import run
+from academix.telegram.receiver import run
 
 
 async def main() -> None:

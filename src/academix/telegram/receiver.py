@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import importlib
 import json
+import os
+import sys
+from contextlib import closing
+from pathlib import Path
 import logging
 import time
 import urllib.error
@@ -10,7 +16,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from threading import Event
 
-from .inbox import RawTelegramUpdate, SqliteUpdateInbox
+from .dispatch import dispatch_pending_updates
+from .inbox import RawTelegramUpdate, SqliteUpdateInbox, is_group_update
 
 
 LOGGER = logging.getLogger(__name__)
@@ -142,3 +149,68 @@ class TelegramLongPollingReceiver:
             reason="receiver was offline longer than Telegram's update retention window",
         )
         LOGGER.warning("Recorded a possible history gap after a >24h outage")
+
+
+def _database():
+    source = os.getenv("ACADEMIX_DB_SOURCE")
+    if source and source not in sys.path:
+        sys.path.insert(0, source)
+    return importlib.import_module(os.getenv("ACADEMIX_DB_MODULE", "academix.db"))
+
+
+def _inbox(path):
+    inbox = SqliteUpdateInbox(path)
+    inbox.open(rebuild_source_catalog=False)
+    return inbox
+
+
+def _store_poll(path, updates, next_offset):
+    with closing(_inbox(path)) as inbox:
+        inbox.store_poll(updates, next_offset=next_offset, succeeded_at_utc=utc_text(utc_now()))
+
+
+def _collect(path, stop):
+    with closing(_inbox(path)) as inbox:
+        while not stop.is_set():
+            try:
+                report = dispatch_pending_updates(inbox, _database())
+                if report.received:
+                    LOGGER.info("Сохранение сообщений: %s", report.saved)
+            except Exception as error:
+                LOGGER.warning("Ошибка сохранения (%s); updates остаются в буфере", type(error).__name__)
+            stop.wait(0.5)
+
+
+async def run(bot, dispatcher):
+    from aiogram.methods import GetUpdates
+
+    path = Path(os.getenv("ACADEMIX_TELEGRAM_INBOX",
+                          str(Path(__file__).resolve().parents[3] / ".local/telegram-inbox.sqlite3")))
+    if (await bot.get_webhook_info()).url:
+        raise ValueError("Для polling нужно отключить webhook")
+
+    async def capture(make_request, client, method):
+        result = await make_request(client, method)
+        if isinstance(method, GetUpdates) and result:
+            received_at = utc_text(utc_now())
+            groups = []
+            for update in result:
+                payload = update.model_dump(mode="json", exclude_none=True)
+                if is_group_update(payload):
+                    groups.append(RawTelegramUpdate(update.update_id, update_kind(payload), payload, received_at))
+            if groups:
+                await asyncio.to_thread(_store_poll, path, groups, max(u.update_id for u in result) + 1)
+        return result
+
+    with closing(SqliteUpdateInbox(path)) as inbox:
+        inbox.open()
+    dispatcher.message.filter(lambda message: message.chat.type == "private")
+    bot.session.middleware.register(capture)
+    stop = Event()
+    collector = asyncio.create_task(asyncio.to_thread(_collect, path, stop))
+    try:
+        await dispatcher.start_polling(bot, allowed_updates=ALLOWED_UPDATES, close_bot_session=False)
+    finally:
+        stop.set()
+        await collector
+        bot.session.middleware.unregister(capture)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib.resources import files
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
@@ -188,8 +188,9 @@ class Summarizer:
         ).read_text(encoding="utf-8")
 
     def summarize(
-        self, request: SummaryRequest, messages: list[Message]
+        self, request: SummaryRequest, messages: list[Message] | None = None
     ) -> SummaryResult:
+        """Получить сообщения из БД; явный список поддерживается для CLI-фикстур."""
         start = _timestamp(request.period_start)
         end = _timestamp(request.period_end)
         if start >= end:
@@ -198,6 +199,31 @@ class Summarizer:
             raise AgentError("chat_id must be a non-empty string")
         if not isinstance(request.user_request, str):
             raise AgentError("user_request must be a string")
+
+        if messages is None:
+            from academix.db import get_messages
+
+            rows = get_messages(
+                chat_id=int(request.chat_id),
+                since=start.astimezone(timezone.utc),
+                until=end.astimezone(timezone.utc),
+                limit=None,
+            )
+            messages = []
+            # Сортировка ниже сохраняет порядок ID при одинаковом времени.
+            for row in sorted(rows, key=lambda item: item["message_id"]):
+                text = row.get("text")
+                if not isinstance(text, str) or not text.strip() or not row.get("date"):
+                    continue
+                # БД включает until; агент использует [start, end).
+                if not start <= _timestamp(row["date"]) < end:
+                    continue
+                messages.append(Message(
+                    id=str(row["message_id"]), timestamp=row["date"],
+                    author=str((row.get("author_name") or "").strip()
+                               or row.get("author_id") or "Неизвестный автор"),
+                    text=text,
+                ))
 
         ordered = []
         source_ids = set()

@@ -10,12 +10,12 @@ from . import AgentError, Message, OpenRouterClient, SummaryRequest, Summarizer
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Summarize an educational chat via OpenRouter")
-    parser.add_argument("input", type=Path, help="JSON object with request and messages")
+    parser.add_argument("input", type=Path, help="JSON with request and optional fixture messages")
     args = parser.parse_args()
     try:
         data = json.loads(args.input.read_text(encoding="utf-8"))
         request = SummaryRequest(**data["request"])
-        messages = [Message(**item) for item in data["messages"]]
+        messages = [Message(**item) for item in data["messages"]] if "messages" in data else None
         result = Summarizer(OpenRouterClient.from_env()).summarize(request, messages)
     except (AgentError, OSError, ValueError, TypeError, KeyError) as error:
         print(f"Summary failed: {error}", file=sys.stderr)
