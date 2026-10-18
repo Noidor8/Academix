@@ -24,6 +24,8 @@ Telegram-бот, который собирает сообщения из уче�
 
 ## Как устроено
 
+<img src="architecture.png" alt="Архитектура Academix" width="900">
+
 **Сбор сообщений (в фоне):** группа в Telegram → long polling в `telegram/receiver.py` → буфер `telegram-inbox.sqlite3` → `telegram/dispatch.py` → `academix.db.save_messages` → таблица `messages` в `academix.db`.
 
 **Сводка (по запросу):** `/summary` в личном чате → `bot/handlers.py` → `bot/service.py` → `academix_agent` → `academix.db.get_messages` → `academix_agent` → OpenRouter → `bot/formatting.py` → ответ студенту.
