@@ -1,8 +1,8 @@
 EMPTY_RESULT = "Сводка пуста: нет сведений для отображения."
 SECTIONS = (
     ("homework", "Домашние задания"),
-    ("deadlines", "Сроки"),
     ("key_points", "Важные сведения"),
+    ("deadlines", "Другие сроки"),
     ("uncertainties", "Неясности"),
 )
 
@@ -29,8 +29,14 @@ def _item(item) -> str:
         not isinstance(source, (str, int)) or isinstance(source, bool) for source in sources
     ):
         raise ValueError("Источники должны быть списком идентификаторов.")
-    if sources:
-        parts.append("Источники: " + ", ".join(str(source) for source in sources))
+    authors = item.get("authors") or []
+    if not isinstance(authors, list) or any(not isinstance(author, str) for author in authors):
+        raise ValueError("Авторы должны быть списком имён.")
+    if not any(parts):
+        return ""
+    authors = list(dict.fromkeys(author.strip() or "неизвестен" for author in authors)) or ["неизвестен"]
+    label = "Автор" if len(authors) == 1 else "Авторы"
+    parts.append(f"{label}: " + ", ".join(authors))
     return "\n".join(part for part in parts if part)
 
 
@@ -49,7 +55,8 @@ def format_summary(result: dict | None) -> str:
             raise ValueError("Раздел результата должен быть списком.")
         entries = [text for item in items if (text := _item(item))]
         if entries:
-            blocks.append(title + "\n" + "\n\n".join("• " + entry for entry in entries))
+            bullets = ["• " + entry.replace("\n", "\n  ") for entry in entries]
+            blocks.append(title + "\n\n" + "\n\n".join(bullets))
     return "\n\n".join(blocks) or EMPTY_RESULT
 
 

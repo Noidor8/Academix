@@ -12,6 +12,30 @@ class SummaryError(Exception):
     """Ошибка с безопасным для пользователя пояснением."""
 
 
+def _with_authors(result: dict, messages: list[dict]) -> dict:
+    names = {}
+    for message in messages:
+        name = message.get("author_name")
+        names[str(message["message_id"])] = (
+            name.strip() if isinstance(name, str) and name.strip() else "неизвестен"
+        )
+    result = dict(result)
+    for section in ("homework", "deadlines", "key_points", "uncertainties"):
+        if not isinstance(result.get(section), list):
+            continue
+        items = []
+        for item in result[section]:
+            if isinstance(item, dict):
+                sources = item.get("source_message_ids") or []
+                if isinstance(sources, list):
+                    item = {**item, "authors": list(dict.fromkeys(
+                        names.get(str(source), "неизвестен") for source in sources
+                    ))}
+            items.append(item)
+        result[section] = items
+    return result
+
+
 async def create_summary(request: dict, *, timeout: float = 60) -> dict:
     request = validate_request(request)
     try:
@@ -21,7 +45,7 @@ async def create_summary(request: dict, *, timeout: float = 60) -> dict:
                 return {}
             if not isinstance(result, dict):
                 raise SummaryError("Агент вернул неподдерживаемый ответ.")
-            return result
+            return _with_authors(result, messages)
     except TimeoutError:
         raise SummaryError("Обработка заняла слишком много времени. Попробуйте позже.") from None
     except NotImplementedError:
