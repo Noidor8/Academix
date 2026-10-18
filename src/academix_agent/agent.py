@@ -8,6 +8,7 @@ from importlib.resources import files
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from academix.db import get_messages
 
 
 class AgentError(RuntimeError):
@@ -201,8 +202,6 @@ class Summarizer:
             raise AgentError("user_request must be a string")
 
         if messages is None:
-            from academix.db import get_messages
-
             rows = get_messages(
                 chat_id=int(request.chat_id),
                 since=start.astimezone(timezone.utc),
