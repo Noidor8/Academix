@@ -33,7 +33,7 @@ def normalize_message(message: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def to_iso_utc(value: Any) -> str | None:
-    """Unix-время, ISO-строка или datetime → '2026-10-14T13:45:00Z'; пусто → None."""
+    """Unix-время, ISO-строка или datetime в '2026-10-14T13:45:00Z'; пусто в None."""
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
