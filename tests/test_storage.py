@@ -6,7 +6,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -14,9 +13,11 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 import academix.db as db
-from academix.db.fake_data import generate
 from academix.db.storage import Storage
 from load_messages import main as load_json_main
+from tests.fake_data import generate
+
+
 
 
 def make_message(**overrides: Any) -> dict[str, Any]:
