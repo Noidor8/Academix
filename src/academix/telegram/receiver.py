@@ -195,7 +195,7 @@ async def run(bot, dispatcher):
             received_at = utc_text(utc_now())
             groups = []
             for update in result:
-                payload = update.model_dump(mode="json", exclude_none=True)
+                payload = update.model_dump(mode="json", by_alias=True, exclude_none=True)
                 if is_group_update(payload):
                     groups.append(RawTelegramUpdate(update.update_id, update_kind(payload), payload, received_at))
             if groups:

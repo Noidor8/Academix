@@ -24,4 +24,4 @@ def _summarize(request: SummaryRequest) -> dict:
         model=settings.get("openrouter", "model", fallback="").strip(),
         timeout=45,
     )
-    return Summarizer(client).summarize(request).to_dict()
+    return Summarizer(client).summarize(request).to_dict(include_authors=True)

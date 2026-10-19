@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from importlib.resources import files
 from typing import Any, Protocol
@@ -71,8 +71,19 @@ class SummaryResult:
     key_points: list[KeyPoint]
     uncertainties: list[Uncertainty]
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    author_names: dict[str, str] = field(default_factory=dict, repr=False, compare=False)
+
+    def to_dict(self, *, include_authors: bool = False) -> dict[str, Any]:
+        result = asdict(self)
+        result.pop("author_names")
+        if include_authors:
+            for section in ("homework", "deadlines", "key_points", "uncertainties"):
+                for item in result[section]:
+                    item["authors"] = list(dict.fromkeys(
+                        self.author_names.get(source, "неизвестен")
+                        for source in item["source_message_ids"]
+                    ))
+        return result
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False)
@@ -265,7 +276,11 @@ class Summarizer:
             system_prompt=self.system_prompt,
             user_prompt=user_prompt,
         )
-        return _parse_result(raw_result, source_ids)
+        result = _parse_result(raw_result, source_ids)
+        return replace(result, author_names={
+            message.id: message.author.strip() or "неизвестен"
+            for _, message in ordered
+        })
 
 
 def _timestamp(value: str) -> datetime:
